@@ -1,0 +1,184 @@
+---
+title: Betweeness centrality is not a network resilience metric
+author: Matthew Bhagat-Conway<br/>Department of City and Regional Planning, University of North Carolina at Chapel Hill
+bibliography: bibliography.bib
+execute:
+    echo: false
+    include: false
+---
+
+```{r}
+GRID_SIZE = 13
+
+library(igraph)
+library(tidyverse)
+library(gridExtra)
+devtools::load_all()
+```
+
+```{r}
+center = (GRID_SIZE + 1) / 2
+
+Ggrid = gridded_graph(GRID_SIZE, GRID_SIZE) +
+    # add the diagonal edge
+    edge(get_grid_vid(center - 1, center - 1, GRID_SIZE), get_grid_vid(center + 1, center + 1, GRID_SIZE), weight = 2 * sqrt(2), curvature=0) -
+    # delete the central vertex
+    vertex(get_grid_vid(center, center, GRID_SIZE))
+
+gridbc = edge_betweenness(Ggrid)
+
+plot_graph(Ggrid, gridbc) +
+    scale_color_binned(breaks=c(0, 50, 100, 200, 400, 800), palette="viridis")
+```
+
+```{r}
+# and now the other graph
+# figure out how many nodes need to be in the smaller section
+# The subgraphs of all vertices above and to the right of and below
+# and to the left of the central plaza will all have shortest paths
+# passing through Diagon Alley - so the number of vertices in each of
+# those subgraphs (which is the dimension of those subgraphs square) squared
+# is the target betweenness
+target_betweenness = ((GRID_SIZE - 1) / 2)^4
+stopifnot(all.equal(target_betweenness, last(gridbc)))
+
+# we want the total nodes to be equal so the betweennesses are comparable
+# the number of nodes in the island multiplied the number of nodes in
+# the mainland should roughly equal the target betweenness
+# to do this we solve the system of simultaneous equations:
+# n1 + n2 = n
+# n1 * n2 = target_betweenness
+#
+# some simple algebra
+# n1 = n - n2
+# (n - n2) * n2 = target_betweenness
+# nn2 - n2^2 = target_betweenness
+# nn2 - n2^2 - target_betweenness = 0
+# n2^2 - nn2 + target_betweenness = 0
+# which looks like a quadratic equation we can solve with the quadratic formula
+# 
+
+n = gorder(Ggrid)
+
+n2 = floor(min(
+    (n + sqrt(n^2 - 4 * target_betweenness)) / 2,
+    (n - sqrt(n^2 - 4 * target_betweenness)) / 2
+))
+
+n1 = n - n2
+
+(target_betweenness - n1 * n2) / target_betweenness
+```
+
+```{r}
+# make the graphs
+mainland = gridded_graph(ceiling(sqrt(n1)), ceiling(sqrt(n1)))
+
+while (gorder(mainland) > n1) {
+    mainland = mainland - vertex(gorder(mainland))
+}
+
+island = gridded_graph(ceiling(sqrt(n2)), ceiling(sqrt(n2)), vidoffset=gorder(mainland), xoffset = GRID_SIZE + 2, yoffset = 2)
+
+while (gorder(island) > n2) {
+    island = island - vertex(gorder(island))
+}
+
+Gisland = mainland + island
+
+# correctly merge weights
+edge_attr(Gisland, "weight") = coalesce(
+    edge_attr(Gisland, "weight_1"),
+    edge_attr(Gisland, "weight_2")
+)
+
+vertex_attr(Gisland, "x") = coalesce(
+    vertex_attr(Gisland, "x_1"),
+    vertex_attr(Gisland, "x_2")
+)
+
+vertex_attr(Gisland, "y") = coalesce(
+    vertex_attr(Gisland, "y_1"),
+    vertex_attr(Gisland, "y_2")
+)
+
+edge_attr(Gisland, "curvature") = coalesce(
+    edge_attr(Gisland, "curvature_1"),
+    edge_attr(Gisland, "curvature_2")
+)
+
+# connect the island and mainland
+Gisland = Gisland + edge(get_grid_vid(GRID_SIZE, 1, GRID_SIZE) + 1, gorder(mainland) + 1, weight=sqrt(10), curvature=0)
+
+islandbc = edge_betweenness(Gisland)
+```
+
+```{r}
+Gislanddual = Gisland + edge(get_grid_vid(GRID_SIZE, 1, GRID_SIZE), gorder(mainland) + get_grid_vid(3, 1, 3), weight=sqrt(29), curvature=0)
+dualbc = edge_betweenness(Gislanddual)
+```
+
+## Questions
+
+## Methods
+
+We construct three stylized networks, which are shown in @fig-nets. The first is a gridded network, with one deviation from griddedness. In the center of the network, one vertex is missing, creating an empty "plaza." There is one road that goes across the plaza diagonally, which I refer to as Diagon Alley. As the only diagonal street in an otherwise gridded network, it will serve as a  shortcut, and thus have high between centrality, for any trips transiting the network from lower-left to upper-right, or vice-versa. However, Diagon Alley is not a critical link for network resilience; removing it would simply require trips take a short detour around the outside of the plaza.
+
+```{r}
+#| output: true
+#| include: true
+#| fig-cap: The two stylized networks used in this article
+#| label: fig-nets
+#| fig-width: 11
+#| fig-height: 5
+p1 = plot_graph(Ggrid) +
+    labs(caption="a. Well-connected network\n(Diagon Alley)") +
+    theme(plot.caption=element_text(hjust=0, size=14))
+p2 = plot_graph(Gisland) +
+    labs(caption="b. Poorly-connected network\n(Bridge)") +
+    theme(plot.caption=element_text(hjust=0, size=14))
+p3 = plot_graph(Gislanddual) +
+    labs(caption="c. Better-connected network\n(Short and Long Bridge)") +
+    theme(plot.caption=element_text(hjust=0, size=14))
+grid.arrange(arrangeGrob(p1, p2, p3, nrow=1, widths=c(GRID_SIZE, GRID_SIZE + 2 + ceiling(sqrt(n2)), GRID_SIZE + 2 + ceiling(sqrt(n2)))))
+```
+
+The second network consists of a "mainland" and an "island," both with gridded networks, and with a single link, which I refer to as the bridge, connecting them. The bridge will be part of the shortest path from any node on the island to the mainland or vice-versa, and thus will have high betweenness centrality.
+
+The third is a modification of the second, where an additional but longer link between the mainland and the island is added, which I call the long bridge. The long bridge clearly increases the resilience of the network to link-level disruptions by removing the single point of failure of a single bridge, but is rarely on the shortest path between any two nodes and therefore has minimal effect on the betweenness centrality.
+
+These networks are contrived, but constructed to demonstrate the major shortcoming of betweenness centrality when it comes to measuring resilience. All three networks have `{r} n` nodes, meaning that betweenness centrality values are comparable between the networks with or without normalization. Furthermore, they have been constructed such that the betweenness centrality values are nearly identical for Diagon Alley in the first network, the bridge in the second network, and the short bridge in the third network. Despite the similar betweenness centrality values, clearly removing the bridge in the second network would have a larger impact on network connectivity than removing Diagon Alley in the first network, or either bridge in the third.
+
+Edge betweenness centrality for the two networks is calculated using the `igraph` package [@csardi-igraph-2006; @csardi-igraph-2025] in R [@r-2025]. `igraph` gracefully handles multiple paths tied for shortest by dividing centrality between all ties (for instance, if there are two tied shortest paths from vertex $i$ to $j$, each path will increase the centrality of all constituent edges by 0.5).
+
+## Findings
+
+The betweenness centrality values for all three networks are shown in @fig-bc. In the first network, Diagon Alley unsurprisingly has the highest betweeness centrality value, as it serves as the only diagonal shortcut in an otherwise perfect grid. It has a betweenness centrality value of 1,296. In the second network, the bridge has the highest betweenness centrality, of 1,280—within 1.25% of the value for Diagon Alley. In the third network, despite the addition of the long bridge, the short bridge is still the shortest route for most access to the island. Thus, the betweenness centrality of the short bridge is 1,254 (within 2.1% of the value in the second network). The betweenness centrality of the long bridge is near zero, despite obvious contributions to resilience.
+
+```{r}
+#| output: true
+#| include: true
+#| fig-cap: Betweenness centrality values for the three networks
+#| label: fig-bc
+#| fig-width: 12
+#| fig-height: 5
+p1 = plot_graph(Ggrid, gridbc) +
+    labs(caption="a. Well-connected network\n(Diagon Alley)") +
+    theme(plot.caption=element_text(hjust=0, size=14), legend.position="none") +
+    scale_color_binned(breaks=c(0, 100, 200, 400, 800, 1600), palette="viridis")
+p2 = plot_graph(Gisland, islandbc) +
+    labs(caption="b. Poorly-connected network\n(Island)") +
+    theme(plot.caption=element_text(hjust=0, size=14), legend.position="none") +
+    scale_color_binned(breaks=c(0, 100, 200, 400, 800, 1600), palette="viridis")
+p3 = plot_graph(Gislanddual, dualbc) +
+    theme(plot.caption=element_text(hjust=0, size=14)) +
+    labs(caption="c. Better-connected network\n(Short and Long Bridge)", color="Betweenness\ncentrality") +
+    scale_color_binned(breaks=c(0, 100, 200, 400, 800, 1600), palette="viridis")
+grid.arrange(arrangeGrob(p1, p2, p3, nrow=1, widths=c(GRID_SIZE, GRID_SIZE + 2 + ceiling(sqrt(n2)), GRID_SIZE + 7.5 + ceiling(sqrt(n2)))))
+```
+
+Betweenness centrality is often conceptualized as a metric of how critical a link is to the functioning of the network, and therefore how much the network would suffer if it were blocked. Links with high betweenness centrality may be seen as indicating a network resilience issue. It is certainly true that links with high betweenness centrality are critical to network function (for instance, arterials and collector roads in a neighborhood of suburban culs-de-sac). However, betweenness centrality does not capture the most fundamental question about network resilience: what are the alternatives to this link? This research has presented three networks with near-identical betweenness centrality values for key links, despite significant differences in the network impacts if these links were to become unavailable.
+
+A network resilience measure to replace betweenness centrality is needed, and several have been proposed. Betweenness centrality likely continues to be used due to its computational efficiency; it requires only one set of shortest path calculations, which can be carried out in minutes on modern consumer computing hardware. Many other approaches require separate shortest path calculations to score each potential link, making them orders of magnitude slower.
+
+## References
