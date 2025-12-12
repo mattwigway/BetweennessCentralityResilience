@@ -124,11 +124,19 @@ dualbc = edge_betweenness(Gislanddual)
 
 ## Questions
 
-Resilience in the face of extreme weather and other hazards is increasingly considered in planning processes, including in transportation [@zhou_resilience_2019a]. One of the more common ways this is done is through graph-theoretic metrics based on the structure of the network. 
+Resilience in the face of extreme weather and other hazards is increasingly considered in planning processes, including in transportation [@zhou_resilience_2019a]. One of the more common ways this is done is through graph-theoretic metrics based on the structure of the network. Among the most popular of these is betweenness centrality, seeing applications in road networks [@testa_resilience_2015], railways [TODO], sewage networks [@okwori_edgebased_2024], and electrical grids [@wang_electrical_2012].
+
+Betweenness centrality of an edge is defined as the number of shortest paths between any pair of nodes in the graph that pass through this edge. When there are multiple equally-short paths, betweenness centrality is divided evenly among their constituent edges [@freeman_set_1977]s. Mathematically, the betweenness centrality $b_e$ of edge $e$ is
+$b_e = \displaystyle\sum_i\sum_{j \neq i}\frac{\#g_{iej}}{\#g_{ij}}$
+where $i$ and $j$ are nodes in the graph, and $\#g_{ij}$ is the number of shortest paths (also known as geodesics) from $i$ to $j$, while $\#g_{iej}$ is the number of shortest paths from $i$ to $j$ that include $e$.
+
+Betweenness centrality was popularized by @freeman_set_1977. @friedkin_theoretical_1991 provided theoretical underpinnings for its use in social networks. Friedkin argued that individuals with high betweenness centrality in social networks exerted significant moderation on communication passing through them.
+
+In this article, I argue that betweenness centrality is not a theoretically valid measure of resilience, because it insufficiently considers redundancy.In social networks where actors have significant ability to affect the information they share, those who are on the shortest path do indeed have significant ability to control the flow of information they pass on. Roads are passive participants in the transportation system, and as such resilience depndens primarily on alternatives if they were removed, not how attractive they are to traffic now.
 
 ## Methods
 
-We construct three stylized networks, which are shown in @fig-nets. The first is a gridded network, with one deviation from griddedness. In the center of the network, one vertex is missing, creating an empty "plaza." There is one road that goes across the plaza diagonally, which I refer to as Diagon Alley. As the only diagonal street in an otherwise gridded network, it will serve as a  shortcut, and thus have high between centrality, for any trips transiting the network from lower-left to upper-right, or vice-versa. However, Diagon Alley is not a critical link for network resilience; removing it would simply require trips take a short detour around the outside of the plaza.
+I demonstrate this through hypothetical transportation networks that clearly differ in terms of resilience but not in terms of betweenness centrality. I construct three stylized networks, which are shown in @fig-nets. The first is a gridded network, with one deviation from griddedness. In the center of the network, one vertex is missing, creating an empty "plaza." There is one road that goes across the plaza diagonally, which I refer to as Diagon Alley. As the only diagonal street in an otherwise gridded network, it will serve as a  shortcut on any path from the southwest to northeast, and thus have high betweenness centrality, for any trips transiting the network from lower-left to upper-right, or vice-versa. However, Diagon Alley is not a critical link for network resilience; removing it would simply require trips take a short detour around the outside of the plaza.
 
 ```{r}
 #| output: true
@@ -159,7 +167,7 @@ Edge betweenness centrality for the two networks is calculated using the `igraph
 
 ## Findings
 
-The betweenness centrality values for all three networks are shown in @fig-bc. In the first network, Diagon Alley unsurprisingly has the highest betweeness centrality value, as it serves as the only diagonal shortcut in an otherwise perfect grid. It has a betweenness centrality value of 1,296. In the second network, the bridge has the highest betweenness centrality, of 1,280—within 1.25% of the value for Diagon Alley. In the third network, despite the addition of the long bridge, the short bridge is still the shortest route for all access to the island. Thus, the betweenness centrality of the short bridge remains 1,280. The betweenness centrality of the long bridge is zero, despite obvious contributions to resilience.
+The betweenness centrality values for all three networks are shown in @fig-bc. In the first network, Diagon Alley unsurprisingly has the highest betweeness centrality value, as it serves as the only diagonal shortcut in an otherwise perfect grid. It has a betweenness centrality value of 1,296. In the second network, the bridge has the highest betweenness centrality, of 1,280—within 1.25% of the value for Diagon Alley. In the third network, despite the addition of the long bridge, the short bridge is still the shortest route for all access to the island. The betweenness centrality of the short bridge remains 1,280. The betweenness centrality of the long bridge is zero, despite obvious contributions to resilience.
 
 ```{r}
 #| output: true
@@ -186,5 +194,9 @@ grid.arrange(arrangeGrob(p1, p2, p3, nrow=1, widths=c(GRID_SIZE, GRID_SIZE + 2 +
 Betweenness centrality is often conceptualized as a metric of how critical a link is to the functioning of the network, and therefore how much the network would suffer if it were blocked. Links with high betweenness centrality may be seen as indicating a network resilience issue. It is certainly true that links with high betweenness centrality are critical to network function (for instance, arterials and collector roads in a neighborhood of suburban culs-de-sac). However, betweenness centrality does not capture the most fundamental question about network resilience: what are the alternatives to this link? This research has presented three networks with near-identical betweenness centrality values for key links, despite significant differences in the network impacts if these links were to become unavailable.
 
 A network resilience measure to replace betweenness centrality is needed, and several have been proposed. Betweenness centrality likely continues to be used due to its computational efficiency; it requires only one set of shortest path calculations, which can be carried out in minutes on modern consumer computing hardware. Many other approaches require separate shortest path calculations to score each potential link, making them orders of magnitude slower.
+
+These findings come from hypothetical networks, but these shortcomings of betweenness centrality have also been observed in real-world networks. @liu_optimized_2024 found that nodes in the Shanghai metro with high betweenness centrality also tended to have many alternatives, suggesting that high betwenness centrality could indicate a redundant (and therefore resilient) link, rather than a critical one.
+
+That said, betweenness centrality has also been shown to be positively correlated with resilience. Through simulation studies, @wan_survey_2021 found that removing nodes with high betweenness from a network would result in the network becoming disconnected sooner than it would when removing nodes based on many other metrics. The networks used by @wan_survey_2021, however, are not represenatative of typical transport networks, with more high-degree nodes.
 
 ## References
