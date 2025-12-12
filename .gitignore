@@ -1,0 +1,8 @@
+.Rproj.user
+
+/.quarto/
+**/*.quarto_ipynb
+.vscode
+*.pdf
+*.html
+*_files
