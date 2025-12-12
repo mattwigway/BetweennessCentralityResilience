@@ -5,6 +5,9 @@ bibliography: bibliography.bib
 execute:
     echo: false
     include: false
+format:
+    wordcount-html:
+        embed-resources: true
 ---
 
 ```{r}
@@ -114,11 +117,14 @@ islandbc = edge_betweenness(Gisland)
 ```
 
 ```{r}
-Gislanddual = Gisland + edge(get_grid_vid(GRID_SIZE, 1, GRID_SIZE), gorder(mainland) + get_grid_vid(3, 1, 3), weight=sqrt(29), curvature=0)
+# multiplication factor of length is measured in Inkscape
+Gislanddual = Gisland + edge(get_grid_vid(GRID_SIZE, 1, GRID_SIZE), gorder(mainland) + get_grid_vid(3, 1, 3), weight=sqrt(10) * 317.01/162.17, curvature=0.5)
 dualbc = edge_betweenness(Gislanddual)
 ```
 
 ## Questions
+
+Resilience in the face of extreme weather and other hazards is increasingly considered in planning processes, including in transportation [@zhou_resilience_2019a]. One of the more common ways this is done is through graph-theoretic metrics based on the structure of the network. 
 
 ## Methods
 
@@ -127,7 +133,7 @@ We construct three stylized networks, which are shown in @fig-nets. The first is
 ```{r}
 #| output: true
 #| include: true
-#| fig-cap: The two stylized networks used in this article
+#| fig-cap: The three stylized networks used in this article
 #| label: fig-nets
 #| fig-width: 11
 #| fig-height: 5
@@ -153,7 +159,7 @@ Edge betweenness centrality for the two networks is calculated using the `igraph
 
 ## Findings
 
-The betweenness centrality values for all three networks are shown in @fig-bc. In the first network, Diagon Alley unsurprisingly has the highest betweeness centrality value, as it serves as the only diagonal shortcut in an otherwise perfect grid. It has a betweenness centrality value of 1,296. In the second network, the bridge has the highest betweenness centrality, of 1,280—within 1.25% of the value for Diagon Alley. In the third network, despite the addition of the long bridge, the short bridge is still the shortest route for most access to the island. Thus, the betweenness centrality of the short bridge is 1,254 (within 2.1% of the value in the second network). The betweenness centrality of the long bridge is near zero, despite obvious contributions to resilience.
+The betweenness centrality values for all three networks are shown in @fig-bc. In the first network, Diagon Alley unsurprisingly has the highest betweeness centrality value, as it serves as the only diagonal shortcut in an otherwise perfect grid. It has a betweenness centrality value of 1,296. In the second network, the bridge has the highest betweenness centrality, of 1,280—within 1.25% of the value for Diagon Alley. In the third network, despite the addition of the long bridge, the short bridge is still the shortest route for all access to the island. Thus, the betweenness centrality of the short bridge remains 1,280. The betweenness centrality of the long bridge is zero, despite obvious contributions to resilience.
 
 ```{r}
 #| output: true
