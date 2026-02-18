@@ -1,0 +1,5 @@
+[deps]
+ArchGDAL = "c9ce4bd3-c3d5-55b8-8973-c0e20141b8c3"
+GeoFormatTypes = "68eda718-8dee-11e9-39e7-89f7f65f511f"
+MetaGraphsNext = "fa8bd995-216d-47f1-8a91-f3b68fbeb377"
+MissingLinks = "472ee5c9-fceb-493a-8c64-09683b8345c2"
