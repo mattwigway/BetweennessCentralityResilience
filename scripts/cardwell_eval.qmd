@@ -1,0 +1,145 @@
+How does the Cardwell et al. algorithm behave on these graphs? Does it identify the chokepoints?
+
+```{r}
+library(tidyverse)
+library(gt)
+library(ggunc)
+library(gridExtra)
+library(av)
+devtools::load_all()
+```
+
+```{r}
+attach(readRDS(here::here("networks.Rds")))
+```
+
+```{r}
+result = list(
+    "Upper Left to Lower Right" = list(
+        # vertex 13: top left
+        # to confirm:
+        # r$> plot_graph(Ggrid - vertex(id=13))
+        # r$> plot_graph(Gisland - vertex(id=13))
+        # r$> plot_graph(Gislanddual - vertex(id=13))
+
+        # 156: lower right
+        "Diagon Alley" = cardwell_redundancy(Ggrid, 13, 156, edge_attr(Ggrid, "weight"), 1.5, iters=45),
+        # 167: lower right of island
+        "Island" = cardwell_redundancy(Gisland, 13, 167, edge_attr(Gisland, "weight"), 1.5, iters=45),
+        "Short and long bridge" = cardwell_redundancy(Gislanddual, 13, 167, edge_attr(Gislanddual, "weight"), 1.5, iters=45)
+    ), 
+    "Upper Left to All" = list(
+        "Diagon Alley" = cardwell_redundancy(Ggrid, 13, V(Ggrid), edge_attr(Ggrid, "weight"), 1.5),
+        # 167: lower right of island
+        "Island" = cardwell_redundancy(Gisland, 13, V(Gisland), edge_attr(Gisland, "weight"), 1.5),
+        "Short and long bridge" = cardwell_redundancy(Gislanddual, 13, V(Gislanddual), edge_attr(Gislanddual, "weight"), 1.5)
+    ),
+    "Lower Right to All" = list(
+        "Diagon Alley" = cardwell_redundancy(Ggrid, 156, V(Ggrid), edge_attr(Ggrid, "weight"), 1.5),
+        # 167: lower right of island
+        "Island" = cardwell_redundancy(Gisland, 167, V(Gisland), edge_attr(Gisland, "weight"), 1.5),
+        "Short and long bridge" = cardwell_redundancy(Gislanddual, 167, V(Gislanddual), edge_attr(Gislanddual, "weight"), 1.5)
+    )
+)
+```
+
+```{r}
+imap(result, \(x, dest) imap(x, \(x, name) tibble_row(dest=dest, name=name, score=x$score)) |> list_rbind()) |>
+    list_rbind() |>
+    pivot_wider(names_from=dest, values_from=score)
+```
+
+```{r}
+
+weights = imap(result, function (x, dest) {
+    imap(x, function (x, net) {
+        imap(x$iterations, function (i, n) {
+            tibble_row(iter=n, net=net, dest=dest, agg_weight=i$agg_weight, exp_weight=i$exp_weight)
+        }) |> list_rbind()
+    }) |> list_rbind()
+}) |> list_rbind() |>
+pivot_longer(ends_with("weight"))
+
+weights |>
+    ggplot(aes(x=iter, y=value, color=name)) +
+        geom_line() +
+        facet_wrap(~net+dest, scales="free", nrow=3) +
+        theme(legend.position = "none") +
+        xlab("Iteration") +
+        ylab("Weight") +
+        scale_color_unc()
+
+
+ggsave("movies/scores.png")
+```
+
+## And the shortest path trees
+
+```{r}
+plot_spt = function (G, spt) {
+    flows = rep(0, length(E(G)))
+
+    for (path in spt$epath) {
+        flows[path] = flows[path] + 1
+    }
+
+    plot_graph(G, linewidth=flows) + scale_linewidth_binned(limits=c(0, 200), breaks=c(0, 40, 80, 120, 160))
+}
+```
+
+```{r}
+for (iter in 1:45) {
+    p = grid.arrange(
+        plot_spt(Ggrid, result$`Lower Right to All`$`Diagon Alley`$iterations[[iter]]),
+        plot_spt(Ggrid, result$`Upper Left to All`$`Diagon Alley`$iterations[[iter]]),
+        plot_spt(Ggrid, result$`Upper Left to Lower Right`$`Diagon Alley`$iterations[[iter]]),
+
+        plot_spt(Gisland, result$`Lower Right to All`$`Island`$iterations[[iter]]),
+        plot_spt(Gisland, result$`Upper Left to All`$`Island`$iterations[[iter]]),
+        plot_spt(Gisland, result$`Upper Left to Lower Right`$`Island`$iterations[[iter]]),
+
+        plot_spt(Ggrid, result$`Lower Right to All`$`Diagon Alley`$iterations[[iter]]),
+        plot_spt(Ggrid, result$`Upper Left to All`$`Diagon Alley`$iterations[[iter]]),
+        plot_spt(Ggrid, result$`Upper Left to Lower Right`$`Diagon Alley`$iterations[[iter]])
+    )
+
+    ggtitle(glue::glue("Iteration {iter}"))
+
+    ggsave(glue::glue("frames/frame{iter:04d}.png"), p)
+}
+```
+
+```{r}
+animate_spts = function (G, res, output, ...) {
+    dir = tempfile()
+    dir.create(dir)
+
+    for (i in seq_along(res$iterations)) {
+        plot_spt(G, res$iterations[[i]]$paths) +
+            ggtitle(glue::glue("Iteration {i}{ifelse(i > res$score, ' (inflected)', '')}"))
+
+        ggsave(file.path(dir, sprintf("frame%04d.png", i)), width=6, height=6, dpi=200)
+    }
+
+    av_encode_video(input = list.files(dir, full.names=T), output=output, framerate=2, ...)
+
+    unlink(dir)
+}
+```
+
+```{r}
+imap(result, function (x, dest) {
+    imap(x, function (x, graph) {
+        if (graph == "Diagon Alley") {
+            G = Ggrid
+        } else if (graph == "Island") {
+            G = Gisland
+        } else {
+            G = Gislanddual
+        }
+
+        animate_spts(G, x, glue::glue("movies/{graph}, {dest}.webm"))
+    })
+}, .progress=T)
+
+```
