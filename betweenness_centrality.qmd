@@ -153,6 +153,10 @@ ks.gridv1 = ks.test(gridbc, islandbc)
 ```
 
 ```{r}
+stopifnot(length(V(Ggrid)) == 168)
+stopifnot(length(V(Gisland)) == 168)
+stopifnot(length(V(Gislanddual)) == 168)
+
 # ensure statement about centralities being same is true
 stopifnot(all.equal(islandbc, dualbc[seq_along(islandbc)]))
 ```
@@ -171,7 +175,7 @@ where $i$ and $j$ are nodes in the graph, and $\#g_{ij}$ is the number of shorte
 
 @friedkin_theoretical_1991 provided theory for betweenness centrality in social networks. He argued that individuals with high betweenness centrality exerted significant influence on communication passing through them. Betweenness centrality is thus a measure of influence.
 
-In this article, I demonstrate through simple example networks that betweenness centrality is not a valid measure of resilience. Resilience of a network is a measure of how well the network functions under disruption, and how quickly it recovers [@sun_resilience_2020]. Atemporal graph theoretic measures cannot quantify recovery time. It is common to evaluate only the functionality of the network under disruption, which is ultimately related to redundancy and travel time on alternate routes (and, in congested networks, capacity of alternate routes). Betweenness centrality only considers shortest paths, and not the presence of longer alternates. It cannot measure redundancy, or the travel time or capacity of alternate routes.
+In this article, I demonstrate through simple example networks that betweenness centrality is not a valid measure of resilience. Resilience of a network is a measure of how well the network functions under disruption, and how quickly it recovers [@sun_resilience_2020]. Atemporal graph theoretic measures cannot quantify recovery time. It is common to evaluate resilience based only on the functionality of the network under disruption, which is ultimately related to redundancy and travel time on alternate routes (and, in congested networks, capacity of alternate routes). Betweenness centrality only considers shortest paths, and not the presence of longer alternates. It cannot measure redundancy, or the travel time or capacity of alternate routes, and thus is not a valid measure of resilience or functionality under disruption.
 
 ## Methods
 
@@ -194,7 +198,10 @@ p2 = plot_graph(Gisland) +
 p3 = plot_graph(Gislanddual) +
     labs(caption="c. Better-connected network\n(Short and Long Bridge)") +
     theme(plot.caption=element_text(hjust=0, size=14))
-grid.arrange(arrangeGrob(p1, p2, p3, nrow=1, widths=c(GRID_SIZE, GRID_SIZE + 2 + ceiling(sqrt(n2)), GRID_SIZE + 2 + ceiling(sqrt(n2)))))
+p = grid.arrange(arrangeGrob(p1, p2, p3, nrow=1, widths=c(GRID_SIZE, GRID_SIZE + 2 + ceiling(sqrt(n2)), GRID_SIZE + 2 + ceiling(sqrt(n2)))))
+
+ggsave("figures/figure-1.jpeg", p, width=11, height=5, dpi=300, bg="white")
+ggsave("figures/figure-1.png", p, width=11, height=5, dpi=300, bg="white")
 ```
 
 The second network consists of a "mainland" and an "island," both with gridded networks, and with a single link, which I refer to as the bridge, connecting them. The bridge will be part of the shortest path from any node on the island to the mainland or vice-versa, and thus will have high betweenness centrality. The third network adds a second, longer bridge, that is too long to be on any shortest path and therefore has no impact on betweenness centrality. Betweenness centrality is calculated using `igraph` [@csardi-igraph-2006; @csardi-igraph-2025] in R [@r-2025]. Code is available at <https://github.com/mattwigway/BetweennessCentralityResilience>.
@@ -223,7 +230,10 @@ p3 = plot_graph(Gislanddual, dualbc) +
     theme(plot.caption=element_text(hjust=0, size=14)) +
     labs(caption="c. Better-connected network\n(Short and Long Bridge)", color="Betweenness\ncentrality") +
     scale_color_binned(breaks=c(0, 100, 200, 400, 800, 1600), limits=c(0, 1600), palette="viridis")
-grid.arrange(arrangeGrob(p1, p2, p3, nrow=1, widths=c(GRID_SIZE, GRID_SIZE + 2 + ceiling(sqrt(n2)), GRID_SIZE + 7.5 + ceiling(sqrt(n2)))))
+p = grid.arrange(arrangeGrob(p1, p2, p3, nrow=1, widths=c(GRID_SIZE, GRID_SIZE + 2 + ceiling(sqrt(n2)), GRID_SIZE + 7.5 + ceiling(sqrt(n2)))))
+
+ggsave("figures/figure-2.jpeg", p, width=11, height=5, dpi=300, bg="white")
+ggsave("figures/figure-2.png", p, width=11, height=5, dpi=300, bg="white")
 ```
 
 There is a difference in the distribution of betweenness centrality between the Diagon Alley graph and either of the other graphs. There are more mid-valued betweenness centralities in the Diagon Alley graph than the others. This difference is confirmed by Kolmogorov-Smirnov tests between the centralities in the Diagon Alley graph and the each of the other graphs (for both tests, p < `{r} ceiling(max(ks.gridv1$p.value, ks.gridv2$p.value) * 1000) / 1000`). However, the distributions of betweenness centrality are still not a reliable measure of resilience. In the Island and Short and Long Bridge networks, the betweenness centrality values are identical for all links other than the added bridge. The difference in both the statistical and geographic distribution of centralities between the Diagon Alley network and other networks is very dependent on exactly where in the Diagon Alley network the diagonal street is placed, and on the network being a perfect grid with no variations in block length (see supplemental materials).
@@ -232,13 +242,13 @@ Betweenness centrality is not a theoretically justified measure of transportatio
 
 There are many alternatives to betweenness centrality for measuring transportation resilience, including alternative graph-theoretic measures. Connectivity-based metrics include the cyclomatic number (number of edges required to be removed to remove all cycles and thus all redundancy), density (number of edges divided by total possible number of edges), and link-node ratio [@sun_resilience_2020].  The clustering coefficient measures the number of triangles in the network, while the related meshedness coefficient essentially counts the number of city blocks [@yazdani_applying_2012]. These metrics do not allow identifying critical links or impacts on long-distance paths.
 
-There are centrality metrics other than betweenness. These include degree centrality, the number of edges at each node, and eigenvector centrality, a recursive metric where each nodes' centrality is proportional to the centralities of the nodes it is connected to. Other centrality metrics are defined based on observed traffic flow [@sun_resilience_2020].  These generally exhibit the same concerns as betweenness centrality of not fully accounting for alternative routes.
+There are centrality metrics other than betweenness. These include degree centrality---the number of edges at each node---and eigenvector centrality, a recursive metric where each nodes' centrality is proportional to the centralities of the nodes it is connected to. Other centrality metrics are defined based on observed traffic flow [@sun_resilience_2020].  These generally exhibit the same concerns as betweenness centrality of not fully accounting for alternative routes.
 
-Another metric is $i$-betweenness. A link is $i$-between two vertices if there is no way to get between them without using the link [@harary_structural_1965]. In the networks presented above, $i$-betweenness would identify the bridge in the first network as a critical location. However, $i$-betweenness does not differentiate short and long detours, nor does it assign any value to adding a third alternate path.
+Another metric is $i$-betweenness. A link is $i$-between two vertices if there is no way to get between them without using the link [@harary_structural_1965]. In the networks presented above, $i$-betweenness would identify the bridge in the second network as a critical location. However, $i$-betweenness does not differentiate short and long detours, nor does it assign any value to adding a third alternate path.
 
-Simulation is another option, removing links from the network and evaluating connectivity [e.g., @aydin_integration_2018]. This approach may test removing all links individually, or random subsets. @jenelius_redundancy_2010 flag betweenness centrality as problematic, and rank links based on simulated impacts to users if links were removed. The challenge with a simulation approach is that in many networks the criticality of links will have a highly-skewed distribution, Un the networks above, only the bridge in the second network affects overall connectivity when removed. A random sampling of links might not contain this link, while a complete enumeration may be computationally challenging.
+Simulation is another option, removing links from the network and evaluating connectivity [e.g., @aydin_integration_2018]. This approach may test removing all links individually, or random subsets. @jenelius_redundancy_2010 flag betweenness centrality as problematic, and rank links based on simulated impacts to users if links were removed. The challenge with a simulation approach is that in many networks the criticality of links will have a highly-skewed distribution. In the networks above, only the bridge in the second network affects overall connectivity when removed. A random sampling of links might not contain this link, while a complete enumeration may be computationally challenging.
 
-Disruptions will often affect multiple links in a non-random fashion (e.g. all low-lying links). A better approach is to remove links based on forecast future hazards [e.g., @fan_climate_2023; @testa_resilience_2015]. This combines the vulnerability of each link with the vulnerability of the network structure itself. However, it is unable to identify links critical to network functionality while not being exceptionally vulnerable to the hazards modeled, though possibly to others—for instance, a crash or vehicle fire that causes long-term damage to the roadway.
+Disruptions will often affect multiple links in a non-random fashion (e.g. all low-lying links). A better approach is to remove links based on forecast future hazards [e.g., @fan_climate_2023; @testa_resilience_2015]. This combines the vulnerability of each link with the vulnerability of the network structure itself. However, it is unable to identify links critical to network functionality that are not exceptionally vulnerable to the hazards modeled, though possibly to others—for instance, a crash or vehicle fire that causes long-term damage to the roadway.
 
 @cardwell_populationbased_2026 take a re-weighting approach, where shortest-path trees are found repeatedly and used links are penalized; the algorithm is iterated until the are no major changes to routes. The number of iterations indicate the overall redundancy of the network, but this method cannot identify individual critical links, and may struggle with chokepoints in an otherwise resilient network.
 
