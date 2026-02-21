@@ -1,0 +1,79 @@
+```{r}
+library(igraph)
+library(tidyverse)
+library(sf)
+library(ggunc)
+library(ggspatial)
+
+G = read_graph("data/graph.graphml", format="graphml")
+
+edge_sf = igraph::as_data_frame(G, what="edges") |>
+    st_as_sf(wkt="geom", crs=32119)
+
+vx_sf = igraph::as_data_frame(G, what="vertices") |>
+    mutate(vid=1:n()) |>
+    st_as_sf(coords=c("x", "y"), crs=32119)
+
+# show vertex IDs
+ggplot() +
+    geom_sf(data=edge_sf) +
+    geom_sf_label(data=filter(vx_sf, vid == 259), aes(label=vid))
+
+write_sf(edge_sf, "data/test.gpkg")
+
+compute_flows = function (fr, to) {
+    flows = rep.int(0, length(E(G)))
+
+    for (v in V(G)) {
+        paths = shortest_paths(G, v, weights = edge_attr(G, "length_m"), mode="all")
+
+        for (pathset in paths$vpath) {
+            # do these both appear and adjacently
+            path = as.vector(pathset)
+            dist = abs(match(fr, path) - match(to, path))
+            if (!is.na(dist) && dist == 1) {
+                # The indicent vertices, given as vertex ids or symbolic vertex names. # nolint
+                # They are interpreted pairwise, i.e. the first and second are used for the first edge,
+                # the third and fourth for the second, etc.
+                edge_ids = get_edge_ids(G, c(
+                    first(path), 
+                    # all middle nodes twice, end of one edge start of next
+                    rep(path[2:(length(path) - 1)], each=2),
+                    last(path)
+                ), F)
+
+                flows[edge_ids] = flows[edge_ids] + 1
+            }
+        }
+    }
+
+    return(flows)
+}
+
+edge_sf$flows = compute_flows(258, 259)
+
+ggplot(edge_sf, aes(color=!(from == 258 & to == 259))) +
+    geom_sf(lineend="round", linewidth=2) +
+    scale_alpha_continuous(limits=c(-200, max(edge_sf$flows))) +
+    scale_color_unc() +
+    theme_void() +
+    annotation_scale() +
+    guides(color=guide_none())
+
+ggsave("sv.png", dpi=300, bg="white")
+
+edge_sf |>
+    filter(flows > 0) |>
+    ggplot(aes(linewidth=flows, color=!(from == 258 & to == 259), alpha = flows)) +
+    geom_sf(data=edge_sf, linewidth=0.15, color="gray", inherit.aes = F) +
+    geom_sf(lineend="round") +
+    scale_alpha_continuous(range=c(0.2,1)) +
+    scale_color_unc() +
+    theme_void() +
+    annotation_scale() +
+    guides(color=guide_none()) +
+    labs(linewidth = "Flow", alpha="Flow")
+
+ggsave("svbc.png", dpi=300, bg="white")
+
+```
