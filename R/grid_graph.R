@@ -3,6 +3,8 @@ gridded_graph = function (nrow, ncol, vidoffset=0, xoffset=0, yoffset=0) {
         cross_join(tibble(col=1:ncol)) |>
         mutate(vid = get_grid_vid(row, col, ncol) + vidoffset) |>
         relocate(vid) |>
+        # Note that row and col are actually backwards here, but that makes the plots more visually appealing
+        # and doesn't affect the analysis.
         mutate(x=row + xoffset, y=col + yoffset)
 
     # make the edges - all the ones from a vertex to the same vertex in next row/col

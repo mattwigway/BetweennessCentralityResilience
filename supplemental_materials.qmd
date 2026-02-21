@@ -1,0 +1,169 @@
+---
+title: Supplemental materials for "Betweenness centrality is not a resilience metric"
+author: Matt Bhagat-Conway
+execute:
+    echo: false
+    include: false
+format:
+    pdf
+---
+
+
+```{r}
+library(tidyverse)
+library(igraph)
+library(ggunc)
+library(gridExtra)
+devtools::load_all()
+```
+
+```{r}
+attach(readRDS("networks.Rds"))
+```
+
+## Distributional effects
+
+While the betweenness centrality maxima of the three networks presented are very similar, there do appear to be some differences between them in terms of the statistical and geographic distributions of centrality values. The distributions of betweenness centrality exhibit the same theoretical concerns about not considering non-shortest paths; herein, I examine whether there are empirical reasons to believe the distribution of centrality may be useful as a resilience metric. I determine that the distributional differences observed in the main paper are largely artifacts of the exact networks used, rather than generalizable findings about the relationship between centrality distributions and resilience.
+
+### Statistical distributions of betweenness centrality
+
+@fig-ecdf-main shows the cumulative distribution functions of betweenness centrality for the three networks in the main paper. The Island and Short and Long Bridge networks have effectively identical cumulative distribution functions, despite clear differences in resilience. The Diagon Alley network shows more mid-level centrality values than the others.
+
+```{r}
+#| label: fig-ecdf-main
+#| fig-cap: Cumulative distribution functions of betweenness centrality for the three networks presented in the article
+#| include: true
+#| fig-alt: Cumulative distributions of betweenness centrality. All are very similar, starting to increase around 100. The Diagon Alley line slopes up more steeply than the Island networks until about 600, indicating more mid-level values. After which point it tapers off, indicating a sightly larger number of high centrality links in the Island networks. The two Island networks show basically identical centrality.
+allbc.main = rbind(
+    tibble(bc = gridbc, Network="Diagon Alley"),
+    tibble(bc = islandbc, Network="Island"),
+    tibble(bc = dualbc, Network = "Short and Long Bridge")
+)
+
+allbc.main |>
+    ggplot(aes(x=bc, color=Network)) +
+        stat_ecdf(geom="step") +
+        xlab("Betweenness centrality") +
+        ylab("Proportion of links") +
+        scale_color_unc()
+```
+
+However, this is very dependent on the exact location of the diagonal link. In @fig-ecdf-multi, I add gray lines showing the cumulative distribution of betweenness centrality for all possible locations of the diagonal shortcut within the Diagon Alley network, which shows that changing the location can make the distribution look much more similar to the other two networks.
+
+```{r}
+#| label: fig-ecdf-multi
+#| fig-cap: Cumulative distribution functions of betweenness centrality for the three networks presented in the article, with variations on Diagon Alley network
+#| fig-alt: The same plot, but now with many gray lines underlaid, mostly falling between the Diagon Alley and Island lines.
+#| include: true
+allbc.scen = tibble(x=2:(GRID_SIZE - 1)) |>
+    cross_join(tibble(y=2:(GRID_SIZE - 1))) |>
+    rowwise() |>
+    reframe(x=x, y=y, bc = edge_betweenness(diagon_alley(GRID_SIZE, x, y))) |>
+    ungroup()
+
+ggplot(mapping=aes(x=bc)) +
+    stat_ecdf(aes(group=interaction(x, y)), data=allbc.scen, color="gray", lwd=0.1) +
+    stat_ecdf(aes(color=Network), data=allbc.main) +
+    xlab("Betweenness centrality") +
+    ylab("Proportion of links")
+```
+
+In @fig-pval-multi, I compute the Kolmogorov-Smirnov p-values comparing the distribution of betweenness centrality for all possible locations of the diagonal shortcut to the original Diagon Alley network (light blue) and the Island network (dark blue). Unsurprisingly, the betweenness centrality distribution in the modified networks is in most cases not statistically distinguishable from the original Diagon Alley network. However, many of the modified networks also do not show a statistically-significant difference relative to the Island network.
+
+```{r}
+allbc.pval = allbc.scen |>
+    group_by(x, y) |>
+    # suppressing warning about approximate p-values in
+    # presence of ties
+    summarize(`Diagon Alley` = suppressWarnings(ks.test(bc, gridbc)$p.value), Island=suppressWarnings(ks.test(bc, islandbc)$p.value)) |>
+    pivot_longer(all_of(c("Diagon Alley", "Island")))
+```
+
+```{r}
+#| label: fig-pval-multi
+#| fig-cap: Cumulative distribution functions of betweenness centrality for the three networks presented in the article, with variations on Diagon Alley network
+#| fig-alt: Distribution of p-values; Compared to the island network, almost all density is at p-value below 0.5, though much is above 0.05, while the density of the Diagon Alley comparison is nonzero all the way to a p-value of 1.
+#| include: true
+allbc.pval |>
+    ggplot(aes(x=value, color=name)) +
+        geom_density() +
+        scale_color_unc() +
+        scale_x_continuous(expand=c(0,0)) +
+        scale_y_continuous(expand=c(0, 0), limits=c(0, 3.5)) +
+        xlab("p-value") +
+        ylab("Density") +
+        theme(axis.text.y=element_blank()) +
+        labs(color="Network")
+```
+
+### Geographic distributions of betweenness centrality
+
+The geographic distribution of betweenness centrality also would initially seem to suggest resilience, with many similar betweenness centrality values in the center of the more resilient Diagon Alley network. This is largely an artifact of the toy nature of the networks. These networks are perfect grids, where all links (other than the bridges and diagonal shortcut) are exactly one unit long, so most pairs of vertices have a multitude of equivalently-short paths between them. @fig-bc-jit recalculates betweenness centrality after applying a small jitter to the locations of every vertex (up to 0.01 units in both X and Y directions) to better reflect real-world networks where lengths are not identical.^[The two nodes connected to the long bridge are not jittered in any network to avoid having to recalculate the length of the curve, which was done manually.] The jitter was applied consistently across networks—i.e. nodes in corresponding locations of different networks have identical jitter applied. The geographic concentration of mid-level links in the Diagon Alley network is essentially gone, and geographic concentrations look very similar across all networks. Thus, the geographic distribution also does not imply particular resilience outcomes.
+
+```{r}
+jitter_graph = function (G, amt) {
+
+    # Move all the points slightly, except those connected to a curved edge
+    vs = V(G)[!(
+        (V(G)$x == 13 & V(G)$y == 1) |
+        (V(G)$x == 18 & V(G)$y == 3) 
+    )]
+
+    jit_x = vapply(1:length(vs), \(i) {
+        set.seed(V(G)[vs[i]]$x * 11 + V(G)[vs[i]]$y * 13)
+        runif(1, -amt, amt)
+    }, 0.0)
+
+    jit_y = vapply(1:length(vs), \(i) {
+        set.seed(V(G)[vs[i]]$x * 17 + V(G)[vs[i]]$y * 19)
+        runif(1, -amt, amt)
+    }, 0.0)
+
+    V(G)[vs]$x = V(G)[vs]$x + jit_x
+    V(G)[vs]$y = V(G)[vs]$y + jit_y
+
+    # and update the lengths
+    for (edge in E(G)[E(G)$curvature == 0]) {
+        fr = V(G)[.from(edge)]
+        to = V(G)[.to(edge)]
+        stopifnot(length(fr) == 1)
+        stopifnot(length(to) == 1)
+        E(G)[edge]$weight = sqrt((V(G)[fr]$x - V(G)[to]$x)^2 + (V(G)[fr]$y - V(G)[to]$y)^2)
+    }
+
+    G
+}
+
+Ggridjit = jitter_graph(Ggrid, 0.01)
+gridbcjit = edge_betweenness(Ggridjit)
+
+Gislandjit = jitter_graph(Gisland, 0.01)
+islandbcjit = edge_betweenness(Gislandjit)
+
+Gdualjit = jitter_graph(Gislanddual, 0.01)
+dualbcjit = edge_betweenness(Gdualjit)
+```
+
+```{r}
+#| output: true
+#| include: true
+#| fig-cap: Betweenness centrality values for the three networks with jittering applied
+#| fig-alt: Plot of betweenness similar to figure 2 in the paper, but now with a much less regular pattern, with some links with high betweenness and some with low in the center of each graph.
+#| label: fig-bc-jit
+#| fig-width: 12
+#| fig-height: 5
+p1 = plot_graph(Ggridjit, gridbcjit) +
+    labs(caption="a. Well-connected network\n(Diagon Alley)") +
+    theme(plot.caption=element_text(hjust=0, size=14), legend.position="none") +
+    scale_color_binned(breaks=c(0, 100, 200, 400, 800, 1600), limits=c(0, 1600), palette="viridis")
+p2 = plot_graph(Gislandjit, islandbcjit) +
+    labs(caption="b. Poorly-connected network\n(Island)") +
+    theme(plot.caption=element_text(hjust=0, size=14), legend.position="none") +
+    scale_color_binned(breaks=c(0, 100, 200, 400, 800, 1600), limits=c(0, 1600), palette="viridis")
+p3 = plot_graph(Gdualjit, dualbcjit) +
+    theme(plot.caption=element_text(hjust=0, size=14)) +
+    labs(caption="c. Better-connected network\n(Short and Long Bridge)", color="Betweenness\ncentrality") +
+    scale_color_binned(breaks=c(0, 100, 200, 400, 800, 1600), palette="viridis", limits=c(0, 1600))
+grid.arrange(arrangeGrob(p1, p2, p3, nrow=1, widths=c(GRID_SIZE, GRID_SIZE + 2 + ceiling(sqrt(n2)), GRID_SIZE + 7.5 + ceiling(sqrt(n2)))))
+
+```
