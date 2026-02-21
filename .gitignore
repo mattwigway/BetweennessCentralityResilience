@@ -7,3 +7,6 @@
 *.html
 *_files
 networks.Rds
+/*.tex
+*.rmarkdown
+figures/
