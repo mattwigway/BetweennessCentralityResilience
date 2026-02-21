@@ -76,6 +76,7 @@ allbc.pval = allbc.scen |>
     # suppressing warning about approximate p-values in
     # presence of ties
     summarize(`Diagon Alley` = suppressWarnings(ks.test(bc, gridbc)$p.value), Island=suppressWarnings(ks.test(bc, islandbc)$p.value)) |>
+    ungroup() |>
     pivot_longer(all_of(c("Diagon Alley", "Island")))
 ```
 
@@ -130,7 +131,7 @@ p2 = plot_graph(Gislandjit, islandbcjit) +
 p3 = plot_graph(Gdualjit, dualbcjit) +
     theme(plot.caption=element_text(hjust=0, size=14)) +
     labs(caption="c. Better-connected network\n(Short and Long Bridge)", color="Betweenness\ncentrality") +
-    scale_color_binned(breaks=c(0, 100, 200, 400, 800, 1600), palette="viridis", limits=c(0, 1600))
+    scale_color_binned(breaks=c(0, 100, 200, 400, 800, 1600), limits=c(0, 1600), palette="viridis")
 grid.arrange(arrangeGrob(p1, p2, p3, nrow=1, widths=c(GRID_SIZE, GRID_SIZE + 2 + ceiling(sqrt(n2)), GRID_SIZE + 7.5 + ceiling(sqrt(n2)))))
 
 ```
